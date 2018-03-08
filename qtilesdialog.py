@@ -61,8 +61,9 @@ class QTilesDialog(QDialog, Ui_Dialog):
         self.workThread = None
 
         self.FORMATS = {
+            self.tr('MBTiles databases (*.mbtiles *.MBTILES)'): '.mbtiles',
             self.tr('ZIP archives (*.zip *.ZIP)'): '.zip',
-            self.tr('MBTiles databases (*.mbtiles *.MBTILES)'): '.mbtiles'}
+        }
 
         self.settings = QSettings('NextGIS', 'QTiles')
         self.grpParameters.setSettings(self.settings)
@@ -191,6 +192,8 @@ class QTilesDialog(QDialog, Ui_Dialog):
             QMessageBox.warning(self, self.tr('No output'), self.tr('Output path is not set. Please enter correct path and try again.'))
             return
         fileInfo = QFileInfo(output)
+        self.outPath = output
+
         if fileInfo.isDir() and not len(QDir(output).entryList(QDir.Dirs | QDir.Files | QDir.NoDotAndDotDot)) == 0:
             res = QMessageBox.warning(
                 self,
@@ -308,6 +311,8 @@ class QTilesDialog(QDialog, Ui_Dialog):
     def processFinished(self):
         self.stopProcessing()
         self.restoreGui()
+        if self.outPath.endswith('.mbtiles'):
+            self.iface.addRasterLayer(self.outPath, 'QTiles')
 
     def stopProcessing(self):
         if self.workThread is not None:
