@@ -267,6 +267,9 @@ class QTilesDialog(QDialog, Ui_Dialog):
         self.workThread.updateProgress.connect(self.updateProgress)
         self.workThread.processFinished.connect(self.processFinished)
         self.workThread.processInterrupted.connect(self.processInterrupted)
+
+        # FIXME: with DUPLICATE FILE it does not even get here
+        self.workThread.processErrored.connect(self.processErrored)
         self.workThread.threshold.connect(self.confirmContinueThreshold)
         self.btnOk.setEnabled(False)
         self.btnClose.setText(self.tr('Cancel'))
@@ -293,6 +296,11 @@ class QTilesDialog(QDialog, Ui_Dialog):
 
     def updateProgress(self):
         self.progressBar.setValue(self.progressBar.value() + 1)
+
+    def processErrored(self, e, exception_string):
+        self.iface.messageBar().pushMessage("QTiles Error", exception_string, QgsMessageBar.ERROR, 30)
+        self.stopProcessing()
+        self.restoreGui()
 
     def processInterrupted(self):
         self.restoreGui()

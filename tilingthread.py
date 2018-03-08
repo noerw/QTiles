@@ -41,6 +41,7 @@ class TilingThread(QThread):
     updateProgress = pyqtSignal()
     processFinished = pyqtSignal()
     processInterrupted = pyqtSignal()
+    processErrored = pyqtSignal(Exception, basestring)
     threshold = pyqtSignal(int)
 
     warring_threshold_tiles_count = 10000
@@ -80,6 +81,8 @@ class TilingThread(QThread):
         elif self.output.suffix().lower() == 'mbtiles':
             self.mode = 'MBTILES'
             self.tmsConvention = True
+        else:
+            raise Exception('Invalid mode selected')
         self.interrupted = False
         self.tiles = []
         self.layersId = []
@@ -109,61 +112,69 @@ class TilingThread(QThread):
             self.settings.setFlag(QgsMapSettings.DrawLabeling, True)
 
     def run(self):
-        self.mutex.lock()
-        self.stopMe = 0
-        self.mutex.unlock()
-        if self.mode == 'DIR':
-            self.writer = DirectoryWriter(self.output, self.rootDir)
-            if self.mapurl:
-                self.writeMapurlFile()
-            if self.viewer:
-                self.writeLeafletViewer()
-        elif self.mode == 'ZIP':
-            self.writer = ZipWriter(self.output, self.rootDir)
-        elif self.mode == 'NGM':
-            self.writer = NGMArchiveWriter(self.output, self.rootDir)
-        elif self.mode == 'MBTILES':
-            self.writer = MBTilesWriter(self.output, self.rootDir, self.format, self.minZoom, self.maxZoom, self.extent, self.mbtilesCompression)
-        if self.jsonFile:
-            self.writeJsonFile()
-        if self.overview:
-            self.writeOverviewFile()
-        self.rangeChanged.emit(self.tr('Searching tiles...'), 0)
-        useTMS = 1
-        if self.tmsConvention:
-            useTMS = -1
-        self.countTiles(Tile(0, 0, 0, useTMS))
-
-        if self.interrupted:
-            del self.tiles[:]
-            self.tiles = None
-            self.processInterrupted.emit()
-        self.rangeChanged.emit(self.tr('Rendering: %v from %m (%p%)'), len(self.tiles))
-
-        if len(self.tiles) > self.warring_threshold_tiles_count:
-            self.confirmMutex.lock()
-            self.threshold.emit(self.warring_threshold_tiles_count)
-
-        self.confirmMutex.lock()
-        if self.interrupted:
-            self.processInterrupted.emit()
-            return
-
-        for t in self.tiles:
-            self.render(t)
-            self.updateProgress.emit()
+        try:
             self.mutex.lock()
-            s = self.stopMe
+            self.stopMe = 0
             self.mutex.unlock()
-            if s == 1:
-                self.interrupted = True
-                break
+            if self.mode == 'DIR':
+                self.writer = DirectoryWriter(self.output, self.rootDir)
+                if self.mapurl:
+                    self.writeMapurlFile()
+                if self.viewer:
+                    self.writeLeafletViewer()
+            elif self.mode == 'ZIP':
+                self.writer = ZipWriter(self.output, self.rootDir)
+            elif self.mode == 'NGM':
+                self.writer = NGMArchiveWriter(self.output, self.rootDir)
+            elif self.mode == 'MBTILES':
+                self.writer = MBTilesWriter(self.output, self.rootDir, self.format, self.minZoom, self.maxZoom, self.extent, self.mbtilesCompression)
 
-        self.writer.finalize()
-        if not self.interrupted:
-            self.processFinished.emit()
-        else:
-            self.processInterrupted.emit()
+            print 'tadaaa'
+            if self.jsonFile:
+                self.writeJsonFile()
+            if self.overview:
+                self.writeOverviewFile()
+            self.rangeChanged.emit(self.tr('Searching tiles...'), 0)
+            useTMS = 1
+            if self.tmsConvention:
+                useTMS = -1
+            self.countTiles(Tile(0, 0, 0, useTMS))
+
+            if self.interrupted:
+                del self.tiles[:]
+                self.tiles = None
+                self.processInterrupted.emit()
+            self.rangeChanged.emit(self.tr('Rendering: %v from %m (%p%)'), len(self.tiles))
+
+            if len(self.tiles) > self.warring_threshold_tiles_count:
+                self.confirmMutex.lock()
+                self.threshold.emit(self.warring_threshold_tiles_count)
+
+            self.confirmMutex.lock()
+            if self.interrupted:
+                self.processInterrupted.emit()
+                return
+
+            for t in self.tiles:
+                print 'rendering {}'.format(t)
+                self.render(t)
+                self.updateProgress.emit()
+                self.mutex.lock()
+                s = self.stopMe
+                self.mutex.unlock()
+                if s == 1:
+                    self.interrupted = True
+                    break
+
+            self.writer.finalize()
+            if not self.interrupted:
+                self.processFinished.emit()
+            else:
+                self.processInterrupted.emit()
+        except Exception, e:
+            import traceback
+            self.processErrored.emit(e, traceback.format_exc())
+            #self.processFinished.emit(False)
 
     def stop(self):
         self.mutex.lock()
