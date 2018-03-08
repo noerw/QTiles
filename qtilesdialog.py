@@ -204,6 +204,25 @@ class QTilesDialog(QDialog, Ui_Dialog):
             if res == QMessageBox.No:
                 return
 
+        # FIXME: if existing file is selected, the thing crashes!
+        if fileInfo.isFile() and fileInfo.exists():
+            res = QMessageBox.warning(
+                self,
+                self.tr('File exists'),
+                self.tr('Selected file exists. This is not supported right now.'),
+                QMessageBox.Ok
+            )
+            return
+
+        if fileInfo.isFile() and not fileInfo.isWritable():
+            res = QMessageBox.warning(
+                self,
+                self.tr('File not writable'),
+                self.tr('Selected file can not be written. Please select a different location.'),
+                QMessageBox.Ok
+            )
+            return
+
         if self.spnZoomMin.value() > self.spnZoomMax.value():
             QMessageBox.warning(self, self.tr('Wrong zoom'), self.tr('Maximum zoom value is lower than minimum. Please correct this and try again.'))
             return
